@@ -1,0 +1,6 @@
+[tool.streamlit]
+title = "IMDB Sentiment Analyzer"
+description = "Analyze movie reviews using Bernoulli Naive Bayes classifier trained on IMDB dataset"
+entryPoint = "apps/streamlit/sentiment_app.py"
+logoPath = "logo.png"
+browserOpen = true
