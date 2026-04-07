@@ -3,13 +3,8 @@ import pandas as pd
 import numpy as np
 import re
 from bs4 import BeautifulSoup
-import pickle
 import joblib
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.naive_bayes import BernoulliNB
-import plotly.graph_objects as go
-import plotly.express as px
-from plotly.subplots import make_subplots
+import os
 import time
 
 # Set page configuration
@@ -97,44 +92,25 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# Load or train the model
+# Load model and vectorizer
 @st.cache_resource
 def load_model_and_vectorizer():
-    """Load or train the model and vectorizer"""
+    """Load the trained model and TF-IDF vectorizer"""
     try:
-        # Try to load saved model first
+        # Try to load from current directory first
         model = joblib.load('sentiment_model.joblib')
         tfidf = joblib.load('tfidf_vectorizer.joblib')
         return model, tfidf
     except:
-        # Train model if not saved
-        st.info("Training model... This may take a moment.")
-        
-        # Load and prepare data
-        df = pd.read_csv('IMDB Dataset.csv')
-        
-        def clean_text(text):
-            text = BeautifulSoup(str(text), 'html.parser').get_text()
-            text = text.lower()
-            text = re.sub(r'[^a-zA-Z\s]', '', text)
-            text = re.sub(r'\s+', ' ', text).strip()
-            return text
-        
-        df['cleaned_review'] = df['review'].apply(clean_text)
-        df['label'] = df['sentiment'].map({'positive': 1, 'negative': 0})
-        
-        # Train TF-IDF and model
-        tfidf = TfidfVectorizer(max_features=5000, stop_words='english')
-        X_tfidf = tfidf.fit_transform(df['cleaned_review'])
-        
-        model = BernoulliNB()
-        model.fit(X_tfidf, df['label'])
-        
-        # Save the model and vectorizer
-        joblib.dump(model, 'sentiment_model.joblib')
-        joblib.dump(tfidf, 'tfidf_vectorizer.joblib')
-        
-        return model, tfidf
+        try:
+            # Try to load from apps/streamlit directory
+            model = joblib.load('apps/streamlit/sentiment_model.joblib')
+            tfidf = joblib.load('apps/streamlit/tfidf_vectorizer.joblib')
+            return model, tfidf
+        except:
+            # If model files don't exist, create a simple demo model
+            st.warning("Model files not found. Using demo mode.")
+            return None, None
 
 # Clean text function
 def clean_text(text):
@@ -148,6 +124,24 @@ def clean_text(text):
 # Predict sentiment
 def predict_sentiment(text, model, tfidf):
     """Predict sentiment for given text"""
+    if model is None or tfidf is None:
+        # Demo mode - simple keyword-based prediction
+        text_lower = text.lower()
+        positive_words = ['good', 'great', 'excellent', 'amazing', 'wonderful', 'brilliant', 'fantastic', 'love', 'best', 'beautiful']
+        negative_words = ['bad', 'terrible', 'awful', 'horrible', 'worst', 'hate', 'disappointing', 'boring', 'poor', 'disaster']
+        
+        pos_count = sum(1 for word in positive_words if word in text_lower)
+        neg_count = sum(1 for word in negative_words if word in text_lower)
+        
+        if pos_count > neg_count:
+            sentiment = "Positive"
+            confidence = min(90, 60 + pos_count * 5)
+        else:
+            sentiment = "Negative"
+            confidence = min(90, 60 + neg_count * 5)
+            
+        return sentiment, confidence, [0.4, 0.6] if sentiment == "Positive" else [0.6, 0.4]
+    
     cleaned_text = clean_text(text)
     text_tfidf = tfidf.transform([cleaned_text])
     prediction = model.predict(text_tfidf)[0]
@@ -157,34 +151,6 @@ def predict_sentiment(text, model, tfidf):
     confidence = max(probability) * 100
     
     return sentiment, confidence, probability
-
-# Create confidence meter
-def create_confidence_meter(confidence):
-    """Create a visual confidence meter"""
-    fig = go.Figure(go.Indicator(
-        mode = "gauge+number+delta",
-        value = confidence,
-        domain = {'x': [0, 1], 'y': [0, 1]},
-        title = {'text': "Confidence Score"},
-        delta = {'reference': 50},
-        gauge = {
-            'axis': {'range': [None, 100]},
-            'bar': {'color': "darkblue"},
-            'steps': [
-                {'range': [0, 50], 'color': "lightgray"},
-                {'range': [50, 80], 'color': "yellow"},
-                {'range': [80, 100], 'color': "green"}
-            ],
-            'threshold': {
-                'line': {'color': "red", 'width': 4},
-                'thickness': 0.75,
-                'value': 90
-            }
-        }
-    ))
-    
-    fig.update_layout(height=300, margin=dict(l=20, r=20, t=40, b=20))
-    return fig
 
 # Sample reviews for testing
 SAMPLE_REVIEWS = [
@@ -206,15 +172,22 @@ def main():
     
     # Sidebar
     st.sidebar.markdown("## About")
-    st.sidebar.info("""
-    This app uses a Bernoulli Naive Bayes classifier trained on 50,000 IMDB movie reviews to predict sentiment.
-    
-    **Model Details:**
-    - Algorithm: Bernoulli Naive Bayes
-    - Features: TF-IDF (5000 features)
-    - Training Data: 50,000 IMDB reviews
-    - Expected Accuracy: ~85-87%
-    """)
+    if model is not None:
+        st.sidebar.info("""
+        This app uses a Bernoulli Naive Bayes classifier trained on IMDB movie reviews to predict sentiment.
+        
+        **Model Details:**
+        - Algorithm: Bernoulli Naive Bayes
+        - Features: TF-IDF (5000 features)
+        - Expected Accuracy: ~85%
+        """)
+    else:
+        st.sidebar.warning("""
+        **Demo Mode Active**
+        
+        The app is running in demo mode with keyword-based sentiment analysis.
+        For full ML functionality, ensure model files are properly loaded.
+        """)
     
     # Main content area
     col1, col2 = st.columns([3, 1])
@@ -252,10 +225,12 @@ def main():
                         </div>
                         """, unsafe_allow_html=True)
                     
-                    # Confidence meter
-                    st.markdown("### Confidence Score")
-                    fig = create_confidence_meter(confidence)
-                    st.plotly_chart(fig, use_container_width=True)
+                    # Display metrics
+                    col_metric1, col_metric2 = st.columns(2)
+                    with col_metric1:
+                        st.metric("Sentiment", sentiment)
+                    with col_metric2:
+                        st.metric("Confidence", f"{confidence:.1f}%")
                     
                     # Probability breakdown
                     st.markdown("### Probability Breakdown")
@@ -264,12 +239,7 @@ def main():
                         'Probability': [probability[1] * 100, probability[0] * 100]
                     })
                     
-                    fig_prob = px.bar(prob_df, x='Sentiment', y='Probability', 
-                                     color='Sentiment',
-                                     color_discrete_map={'Positive': '#667eea', 'Negative': '#f5576c'},
-                                     title="Sentiment Probability Distribution")
-                    fig_prob.update_layout(showlegend=False, height=300)
-                    st.plotly_chart(fig_prob, use_container_width=True)
+                    st.bar_chart(prob_df.set_index('Sentiment'))
                     
             else:
                 st.warning("Please enter a movie review to analyze.")
@@ -280,7 +250,6 @@ def main():
         
         for i, review in enumerate(SAMPLE_REVIEWS):
             if st.button(f"Sample {i+1}", key=f"sample_{i}"):
-                # This will be handled by the session state
                 st.session_state.selected_review = review
         
         # Display selected review if any
@@ -297,7 +266,7 @@ def main():
     for i, review in enumerate(SAMPLE_REVIEWS[:6]):
         with sample_cols[i % 3]:
             st.markdown(f"""
-            <div class="sample-review" onclick="selectSample({i})">
+            <div class="sample-review">
                 <strong>Sample {i+1}:</strong><br>
                 <small>{review[:100]}...</small>
             </div>
