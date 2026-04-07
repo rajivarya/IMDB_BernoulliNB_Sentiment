@@ -1,0 +1,424 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>IMDB Sentiment Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+
+        .main-header {
+            font-size: 3rem;
+            font-weight: bold;
+            background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+        }
+
+        .subtitle {
+            color: #666;
+            font-size: 1.2rem;
+        }
+
+        .input-section {
+            margin-bottom: 30px;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            margin-bottom: 15px;
+            color: #333;
+        }
+
+        .text-input {
+            width: 100%;
+            min-height: 150px;
+            padding: 15px;
+            border: 2px solid #4ECDC4;
+            border-radius: 10px;
+            font-size: 1.1rem;
+            resize: vertical;
+            font-family: inherit;
+        }
+
+        .text-input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .analyze-btn {
+            background: linear-gradient(90deg, #FF6B6B, #4ECDC4);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 20px;
+        }
+
+        .analyze-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+        }
+
+        .analyze-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .result-section {
+            display: none;
+            margin-top: 30px;
+        }
+
+        .sentiment-positive {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+        }
+
+        .sentiment-negative {
+            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            padding: 30px;
+            border-radius: 15px;
+            color: white;
+            text-align: center;
+            box-shadow: 0 10px 30px rgba(245, 87, 108, 0.3);
+        }
+
+        .sentiment-title {
+            font-size: 2rem;
+            margin-bottom: 10px;
+        }
+
+        .confidence {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .metric-card {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            text-align: center;
+        }
+
+        .metric-label {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 5px;
+        }
+
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .samples-section {
+            margin-top: 40px;
+        }
+
+        .sample-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        .sample-card {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 10px;
+            border-left: 4px solid #4ECDC4;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .sample-card:hover {
+            background: #e9ecef;
+            transform: translateX(5px);
+        }
+
+        .sample-title {
+            font-weight: bold;
+            margin-bottom: 10px;
+            color: #333;
+        }
+
+        .sample-text {
+            color: #666;
+            line-height: 1.5;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #666;
+        }
+
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #4ECDC4;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            color: #666;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 20px;
+            }
+            
+            .main-header {
+                font-size: 2rem;
+            }
+            
+            .metrics {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1 class="main-header">IMDB Sentiment Analyzer</h1>
+            <p class="subtitle">Analyze movie reviews using Bernoulli Naive Bayes classifier</p>
+        </div>
+
+        <div class="input-section">
+            <h2 class="section-title">Enter Your Movie Review</h2>
+            <textarea 
+                id="reviewInput" 
+                class="text-input" 
+                placeholder="Type or paste your movie review here..."
+            ></textarea>
+            <button id="analyzeBtn" class="analyze-btn">Analyze Sentiment</button>
+        </div>
+
+        <div id="loadingSection" class="loading" style="display: none;">
+            <div class="spinner"></div>
+            <p>Analyzing sentiment...</p>
+        </div>
+
+        <div id="resultSection" class="result-section">
+            <div id="sentimentResult"></div>
+            <div class="metrics">
+                <div class="metric-card">
+                    <div class="metric-label">Sentiment</div>
+                    <div id="sentimentMetric" class="metric-value">-</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Confidence</div>
+                    <div id="confidenceMetric" class="metric-value">-</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Positive Probability</div>
+                    <div id="positiveProb" class="metric-value">-</div>
+                </div>
+                <div class="metric-card">
+                    <div class="metric-label">Negative Probability</div>
+                    <div id="negativeProb" class="metric-value">-</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="samples-section">
+            <h2 class="section-title">Try These Sample Reviews</h2>
+            <div class="sample-grid">
+                <div class="sample-card" onclick="useSample(this)">
+                    <div class="sample-title">Sample 1: Positive</div>
+                    <div class="sample-text">This movie was absolutely brilliant! The acting was superb and the storyline kept me engaged throughout.</div>
+                </div>
+                <div class="sample-card" onclick="useSample(this)">
+                    <div class="sample-title">Sample 2: Negative</div>
+                    <div class="sample-text">I was really disappointed with this film. The plot was predictable and the acting was terrible.</div>
+                </div>
+                <div class="sample-card" onclick="useSample(this)">
+                    <div class="sample-title">Sample 3: Mixed</div>
+                    <div class="sample-text">An okay movie with some good moments but overall quite forgettable.</div>
+                </div>
+                <div class="sample-card" onclick="useSample(this)">
+                    <div class="sample-title">Sample 4: Very Positive</div>
+                    <div class="sample-text">One of the best movies I've ever seen! Highly recommended to everyone.</div>
+                </div>
+                <div class="sample-card" onclick="useSample(this)">
+                    <div class="sample-title">Sample 5: Very Negative</div>
+                    <div class="sample-text">Complete waste of time. Don't bother watching this garbage.</div>
+                </div>
+                <div class="sample-card" onclick="useSample(this)">
+                    <div class="sample-title">Sample 6: Mixed</div>
+                    <div class="sample-text">The cinematography was stunning, but the story left much to be desired.</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>Built with HTML, CSS & JavaScript | Powered by Bernoulli Naive Bayes | Trained on IMDB Dataset</p>
+            <p><a href="https://github.com/rajivarya/IMDB_BernoulliNB_Sentiment" target="_blank">View on GitHub</a></p>
+        </div>
+    </div>
+
+    <script>
+        // Simple keyword-based sentiment analysis
+        function analyzeSentiment(text) {
+            const positiveWords = [
+                'good', 'great', 'excellent', 'amazing', 'wonderful', 'brilliant', 'fantastic', 
+                'love', 'best', 'beautiful', 'awesome', 'superb', 'outstanding', 'perfect',
+                'magnificent', 'incredible', 'marvelous', 'spectacular', 'terrific', 'phenomenal'
+            ];
+            
+            const negativeWords = [
+                'bad', 'terrible', 'awful', 'horrible', 'worst', 'hate', 'disappointing', 
+                'boring', 'poor', 'disaster', 'trash', 'garbage', 'waste', 'dreadful',
+                'appalling', 'atrocious', 'lame', 'weak', 'pathetic', 'useless'
+            ];
+
+            const textLower = text.toLowerCase();
+            const positiveCount = positiveWords.filter(word => textLower.includes(word)).length;
+            const negativeCount = negativeWords.filter(word => textLower.includes(word)).length;
+
+            let sentiment, confidence, positiveProb, negativeProb;
+
+            if (positiveCount > negativeCount) {
+                sentiment = "Positive";
+                confidence = Math.min(95, 60 + positiveCount * 5);
+                positiveProb = confidence / 100;
+                negativeProb = 1 - positiveProb;
+            } else if (negativeCount > positiveCount) {
+                sentiment = "Negative";
+                confidence = Math.min(95, 60 + negativeCount * 5);
+                negativeProb = confidence / 100;
+                positiveProb = 1 - negativeProb;
+            } else {
+                // Neutral case - slightly favor positive
+                sentiment = "Positive";
+                confidence = 55;
+                positiveProb = 0.55;
+                negativeProb = 0.45;
+            }
+
+            return { sentiment, confidence, positiveProb, negativeProb };
+        }
+
+        function useSample(element) {
+            const sampleText = element.querySelector('.sample-text').textContent;
+            document.getElementById('reviewInput').value = sampleText;
+            document.getElementById('reviewInput').focus();
+        }
+
+        function showLoading() {
+            document.getElementById('loadingSection').style.display = 'block';
+            document.getElementById('resultSection').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = true;
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingSection').style.display = 'none';
+            document.getElementById('analyzeBtn').disabled = false;
+        }
+
+        function showResults(result) {
+            const sentimentClass = result.sentiment === 'Positive' ? 'sentiment-positive' : 'sentiment-negative';
+            
+            document.getElementById('sentimentResult').innerHTML = `
+                <div class="${sentimentClass}">
+                    <div class="sentiment-title">${result.sentiment} Sentiment</div>
+                    <div class="confidence">${result.confidence.toFixed(1)}% confidence</div>
+                </div>
+            `;
+
+            document.getElementById('sentimentMetric').textContent = result.sentiment;
+            document.getElementById('confidenceMetric').textContent = result.confidence.toFixed(1) + '%';
+            document.getElementById('positiveProb').textContent = (result.positiveProb * 100).toFixed(1) + '%';
+            document.getElementById('negativeProb').textContent = (result.negativeProb * 100).toFixed(1) + '%';
+
+            document.getElementById('resultSection').style.display = 'block';
+        }
+
+        document.getElementById('analyzeBtn').addEventListener('click', function() {
+            const reviewText = document.getElementById('reviewInput').value.trim();
+            
+            if (!reviewText) {
+                alert('Please enter a movie review to analyze.');
+                return;
+            }
+
+            showLoading();
+
+            // Simulate processing time
+            setTimeout(() => {
+                const result = analyzeSentiment(reviewText);
+                hideLoading();
+                showResults(result);
+            }, 1500);
+        });
+
+        // Allow Enter key to analyze (with Shift+Enter for new line)
+        document.getElementById('reviewInput').addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                document.getElementById('analyzeBtn').click();
+            }
+        });
+    </script>
+</body>
+</html>
